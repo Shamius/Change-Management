@@ -119,10 +119,9 @@ h1{font-size:clamp(35px,5.5vw,60px);line-height:1.03;margin:0 0 14px;max-width:8
 </div>
 
 <script>
-const STORAGE_KEY='change-management-relevance-v1';
+const STORAGE_KEY='change-management-relevance-v2';
 const questions=[
   {
-    tag:'Вопрос 1 из 7',
     text:'Что происходит в твоей работе в ближайшие месяцы?',
     help:'Выбери самый близкий вариант.',
     options:[
@@ -133,7 +132,6 @@ const questions=[
     ]
   },
   {
-    tag:'Вопрос 2 из 7',
     text:'Есть ли сейчас конкретная рабочая ситуация, в которой тебе не хватает ясности?',
     help:'Речь о фактах, сроках, правилах, ожиданиях или следующем шаге.',
     options:[
@@ -144,7 +142,6 @@ const questions=[
     ]
   },
   {
-    tag:'Вопрос 3 из 7',
     text:'Насколько изменения уже требуют от тебя пересматривать приоритеты и привычный ритм работы?',
     help:'Подумай о нагрузке, сроках и необходимости что-то переносить или прекращать.',
     options:[
@@ -155,7 +152,6 @@ const questions=[
     ]
   },
   {
-    tag:'Вопрос 4 из 7',
     text:'Есть ли в твоей работе что-то, что давно пора изменить?',
     help:'Например, неудобный процесс, повторяющаяся проблема, устаревший способ работы или неясное взаимодействие.',
     options:[
@@ -166,7 +162,6 @@ const questions=[
     ]
   },
   {
-    tag:'Вопрос 5 из 7',
     text:'Насколько ясно тебе, что именно должно стать по-другому?',
     help:'Оцени конкретность желаемого изменения.',
     options:[
@@ -177,7 +172,6 @@ const questions=[
     ]
   },
   {
-    tag:'Вопрос 6 из 7',
     text:'Нужно ли тебе договариваться с другими людьми, чтобы ситуация сдвинулась?',
     help:'Например, уточнять неизвестное, обсуждать сопротивление, распределять роли или получать поддержку.',
     options:[
@@ -188,7 +182,6 @@ const questions=[
     ]
   },
   {
-    tag:'Вопрос 7 из 7',
     text:'С каким кейсом ты мог бы начать работу уже на первом модуле?',
     help:'Участники программы работают со своей реальной ситуацией изменений.',
     options:[
@@ -201,39 +194,67 @@ const questions=[
 ];
 
 const screens={start:document.getElementById('startScreen'),quiz:document.getElementById('quizScreen'),result:document.getElementById('resultScreen')};
-const answers=Array(questions.length).fill(null);
+let answers=Array(questions.length).fill(null);
+let questionOrder=[];
+let optionOrders=[];
 let current=0;
 
-function show(name){Object.entries(screens).forEach(([k,v])=>v.classList.toggle('hidden',k!==name));window.scrollTo({top:0,behavior:'smooth'});}
-function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify({answers,current,screen:getVisible()}));}
+function shuffledIndices(length){
+  const arr=Array.from({length},(_,i)=>i);
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function createOrder(){
+  questionOrder=shuffledIndices(questions.length);
+  optionOrders=questions.map(q=>shuffledIndices(q.options.length));
+}
+
+function setScreen(name,scroll=false){
+  Object.entries(screens).forEach(([key,element])=>element.classList.toggle('hidden',key!==name));
+  if(scroll)screens[name].scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function save(){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify({answers,current,screen:getVisible(),questionOrder,optionOrders}));
+}
+
 function getVisible(){return Object.entries(screens).find(([,el])=>!el.classList.contains('hidden'))?.[0]||'start';}
 function clearSave(){localStorage.removeItem(STORAGE_KEY);}
 
-function renderQuestion(){
-  const q=questions[current];
+function renderQuestion({scroll=false}={}){
+  const questionIndex=questionOrder[current];
+  const q=questions[questionIndex];
   document.getElementById('progressText').textContent=`Вопрос ${current+1} из ${questions.length}`;
-  document.getElementById('progressBar').style.width=`${(current/questions.length)*100}%`;
-  document.getElementById('questionTag').textContent=q.tag;
+  document.getElementById('progressBar').style.width=`${((current+1)/questions.length)*100}%`;
+  document.getElementById('questionTag').textContent=`Вопрос ${current+1} из ${questions.length}`;
   document.getElementById('questionText').textContent=q.text;
   document.getElementById('questionHelp').textContent=q.help;
   const box=document.getElementById('options');box.innerHTML='';
-  q.options.forEach((opt,i)=>{
-    const btn=document.createElement('button');btn.type='button';btn.className='option'+(answers[current]===i?' selected':'');
-    btn.innerHTML=`<span class="option-letter">${String.fromCharCode(65+i)}</span><span class="option-text"></span>`;
+  optionOrders[questionIndex].forEach((optionIndex,displayIndex)=>{
+    const opt=q.options[optionIndex];
+    const btn=document.createElement('button');
+    btn.type='button';
+    btn.className='option'+(answers[questionIndex]===optionIndex?' selected':'');
+    btn.innerHTML=`<span class="option-letter">${String.fromCharCode(65+displayIndex)}</span><span class="option-text"></span>`;
     btn.querySelector('.option-text').textContent=opt.text;
-    btn.addEventListener('click',()=>{answers[current]=i;renderQuestion();});
+    btn.addEventListener('click',()=>{answers[questionIndex]=optionIndex;renderQuestion();});
     box.appendChild(btn);
   });
   document.getElementById('prevBtn').disabled=current===0;
-  document.getElementById('nextBtn').disabled=answers[current]===null;
+  document.getElementById('nextBtn').disabled=answers[questionIndex]===null;
   document.getElementById('nextBtn').textContent=current===questions.length-1?'Узнать результат':'Дальше';
-  show('quiz');save();
+  setScreen('quiz',scroll);
+  save();
 }
 
 function totals(){
-  return answers.reduce((sum,a,idx)=>{
-    if(a===null)return sum;
-    const opt=questions[idx].options[a];
+  return answers.reduce((sum,answer,questionIndex)=>{
+    if(answer===null)return sum;
+    const opt=questions[questionIndex].options[answer];
     sum.o+=opt.o;sum.i+=opt.i;sum.c+=opt.c;return sum;
   },{o:0,i:0,c:0});
 }
@@ -278,20 +299,35 @@ function renderResult(){
   r.modules.forEach(text=>{const div=document.createElement('div');div.className='module';div.textContent=text;modules.appendChild(div);});
   document.getElementById('resultNote').textContent=r.note;
   document.getElementById('progressBar').style.width='100%';
-  show('result');save();
+  setScreen('result',true);save();
 }
 
-function start(){answers.fill(null);current=0;renderQuestion();}
+function start(){
+  answers=Array(questions.length).fill(null);
+  current=0;
+  createOrder();
+  renderQuestion({scroll:true});
+}
+
 document.getElementById('startBtn').addEventListener('click',start);
 document.getElementById('prevBtn').addEventListener('click',()=>{if(current>0){current--;renderQuestion();}});
-document.getElementById('nextBtn').addEventListener('click',()=>{if(answers[current]===null)return;if(current<questions.length-1){current++;renderQuestion();}else{renderResult();}});
+document.getElementById('nextBtn').addEventListener('click',()=>{
+  const questionIndex=questionOrder[current];
+  if(answers[questionIndex]===null)return;
+  if(current<questions.length-1){current++;renderQuestion();}else{renderResult();}
+});
 document.getElementById('restartBtn').addEventListener('click',()=>{clearSave();start();});
 
 (function restore(){
   try{
     const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
-    if(!saved||!Array.isArray(saved.answers)||saved.answers.length!==questions.length)return;
-    saved.answers.forEach((v,i)=>answers[i]=v);current=Math.min(Math.max(saved.current||0,0),questions.length-1);
+    const validOrder=Array.isArray(saved?.questionOrder)&&saved.questionOrder.length===questions.length;
+    const validOptions=Array.isArray(saved?.optionOrders)&&saved.optionOrders.length===questions.length;
+    if(!saved||!Array.isArray(saved.answers)||saved.answers.length!==questions.length||!validOrder||!validOptions)return;
+    answers=saved.answers;
+    questionOrder=saved.questionOrder;
+    optionOrders=saved.optionOrders;
+    current=Math.min(Math.max(saved.current||0,0),questions.length-1);
     if(saved.screen==='result'&&answers.every(v=>v!==null)){renderResult();return;}
     if(saved.screen==='quiz'){renderQuestion();}
   }catch(e){clearSave();}
